@@ -160,12 +160,34 @@ image cornerness_response(image S)
 // returns: image with only local-maxima responses within w pixels.
 image nms_image(image im, int w)
 {
+    int i, j, indx, indy;
+    float pixel;
     image r = copy_image(im);
-    // TODO: perform NMS on the response map.
     // for every pixel in the image:
     //     for neighbors within w:
     //         if neighbor response greater than pixel response:
     //             set response to be very low (I use -999999 [why not 0??])
+    for ( i = 0; i < im.w; i++ ) {
+        for ( j = 0; j < im.h; j++ ) {
+            pixel = get_pixel(im, i, j, 0);
+            for ( indx = 1; indx <= w; indx++ ) {
+                for ( indy = 1; indy <= w; indy++ ) {
+                    if ( get_pixel(im, i - indx, j - indy, 0) > pixel ||
+                         get_pixel(im, i - indx, j + indy, 0) > pixel ||
+                         get_pixel(im, i + indx, j - indy, 0) > pixel ||
+                         get_pixel(im, i + indx, j + indy, 0) > pixel
+                       ) {
+                           pixel = -999999;
+                           set_pixel(r, i, j, 0, pixel);
+                           break;
+                    }
+                }
+                if ( pixel < -50 ) {
+                    break;
+                }
+            }
+        }
+    }
     return r;
 }
 
@@ -188,15 +210,26 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
     image Rnms = nms_image(R, nms);
 
 
-    //TODO: count number of responses over threshold
-    int count = 1; // change this
+    int i, j, count, index;
+    for (i = 0, count = 0; i < Rnms.w; i++ ) {
+        for ( j = 0; j < Rnms.h; j++ ) {
+            if ( get_pixel(Rnms, i, j, 0) >= thresh ) {
+                count++;
+            }
+        }
+    }
 
     
     *n = count; // <- set *n equal to number of corners in image.
     descriptor *d = calloc(count, sizeof(descriptor));
-    //TODO: fill in array *d with descriptors of corners, use describe_index.
-
-
+    for (i = 0, index = 0; i < Rnms.w; i++ ) {
+        for ( j = 0; j < Rnms.h; j++ ) {
+            if ( get_pixel(Rnms, i, j, 0) >= thresh ) {
+                d[index] = describe_index(im, i + im.w*j);
+                index++;
+            }
+        }
+    }
     free_image(S);
     free_image(R);
     free_image(Rnms);
