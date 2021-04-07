@@ -112,8 +112,25 @@ image smooth_image(image im, float sigma)
 //          third channel is IxIy.
 image structure_matrix(image im, float sigma)
 {
+    int i, j;
+    float pixel;
     image S = make_image(im.w, im.h, 3);
-    // TODO: calculate structure matrix for im.
+    image gx = convolve_image(im, make_gx_filter(), 0);
+    image gy = convolve_image(im, make_gy_filter(), 0);
+
+    for ( i = 0; i < im.w; i++ ) {
+        for ( j = 0; j < im.h; j++ ) {
+            pixel = pow(get_pixel(gx, i, j, 0), 2);
+            set_pixel(S, i, j, 0, pixel);
+                
+            pixel = pow(get_pixel(gy, i, j, 0), 2);
+            set_pixel(S, i, j, 1, pixel);
+                
+            pixel = get_pixel(gx, i, j, 0) * get_pixel(gy, i, j, 0);
+            set_pixel(S, i, j, 2, pixel);
+        }
+    } 
+    S = smooth_image(S, sigma);
     return S;
 }
 
