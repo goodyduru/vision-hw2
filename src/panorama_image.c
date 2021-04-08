@@ -117,8 +117,12 @@ image find_and_draw_matches(image a, image b, float sigma, float thresh, int nms
 // returns: l1 distance between arrays (sum of absolute differences).
 float l1_distance(float *a, float *b, int n)
 {
-    // TODO: return the correct number.
-    return 0;
+    int i;
+    float sum = 0.0;
+    for ( i = 0; i < n; i++ ) {
+        sum += fabs(b[i] - a[i]);
+    }
+    return sum;
 }
 
 // Finds best matches between descriptors of two images.
@@ -130,29 +134,49 @@ float l1_distance(float *a, float *b, int n)
 match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
 {
     int i,j;
+    float dist, l1_dist;
 
     // We will have at most an matches.
     *mn = an;
     match *m = calloc(an, sizeof(match));
     for(j = 0; j < an; ++j){
-        // TODO: for every descriptor in a, find best match in b.
+        // For every descriptor in a, find best match in b.
         // record ai as the index in *a and bi as the index in *b.
         int bind = 0; // <- find the best match
+        for ( i = 0, dist = MAXFLOAT; i < bn; i++ ) {
+            l1_dist = l1_distance(a[j].data, b[i].data, MIN(a[j].n, b[i].n) );
+            if ( l1_dist < dist ) {
+                bind = i;
+                dist = l1_dist;
+            }
+        }
         m[j].ai = j;
         m[j].bi = bind; // <- should be index in b.
         m[j].p = a[j].p;
         m[j].q = b[bind].p;
-        m[j].distance = 0; // <- should be the smallest L1 distance!
+        m[j].distance = dist; // <- should be the smallest L1 distance!
     }
 
     int count = 0;
     int *seen = calloc(bn, sizeof(int));
-    // TODO: we want matches to be injective (one-to-one).
+    // We want matches to be injective (one-to-one).
     // Sort matches based on distance using match_compare and qsort.
     // Then throw out matches to the same element in b. Use seen to keep track.
     // Each point should only be a part of one match.
     // Some points will not be in a match.
     // In practice just bring good matches to front of list, set *mn.
+    qsort(m, an, sizeof(match), match_compare);
+    for ( j = 0; j < an; j++ ) {
+        if ( seen[m[j].bi] == 1 ) {
+            for ( i = j; i < an; i++ ) {
+                m[i] = m[i+1];
+            }
+        }
+        else {
+            seen[m[j].bi] = 1;
+            count++;
+        }
+    }
     *mn = count;
     free(seen);
     return m;
