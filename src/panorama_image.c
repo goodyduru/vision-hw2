@@ -166,10 +166,13 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
     // Some points will not be in a match.
     // In practice just bring good matches to front of list, set *mn.
     qsort(m, an, sizeof(match), match_compare);
+    match temp;
     for ( j = 0; j < an; j++ ) {
         if ( seen[m[j].bi] == 1 ) {
             for ( i = j; i < an; i++ ) {
+                temp = m[i];
                 m[i] = m[i+1];
+                m[i+1] = temp;
             }
         }
         else {
@@ -188,11 +191,16 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
 // returns: point projected using the homography.
 point project_point(matrix H, point p)
 {
+    matrix m;
     matrix c = make_matrix(3, 1);
-    // TODO: project point p with homography H.
+    // project point p with homography H.
     // Remember that homogeneous coordinates are equivalent up to scalar.
     // Have to divide by.... something...
-    point q = make_point(0, 0);
+    c.data[0][0] = p.x;
+    c.data[1][0] = p.y;
+    c.data[2][0] = 1.0;
+    m = matrix_mult_matrix(H, c);
+    point q = make_point(m.data[0][0]/m.data[2][0], m.data[1][0]/m.data[2][0]);
     return q;
 }
 
@@ -201,8 +209,8 @@ point project_point(matrix H, point p)
 // returns: L2 distance between them.
 float point_distance(point p, point q)
 {
-    // TODO: should be a quick one.
-    return 0;
+    float dist;
+    return sqrt(pow((q.y - p.y), 2) + pow((q.x - p.x), 2));
 }
 
 // Count number of inliers in a set of matches. Should also bring inliers
@@ -218,9 +226,16 @@ int model_inliers(matrix H, match *m, int n, float thresh)
 {
     int i;
     int count = 0;
-    // TODO: count number of matches that are inliers
+    // count number of matches that are inliers
     // i.e. distance(H*p, q) < thresh
     // Also, sort the matches m so the inliers are the first 'count' elements.
+    for ( i = 0; i < n; i++ ) {
+        m[i].distance = point_distance(project_point(H, m[i].p), m[i].q);
+        if ( m[i].distance < thresh ) {
+            count++;
+        }
+    }
+    qsort(m, n, sizeof(match), match_compare);
     return count;
 }
 
@@ -229,7 +244,15 @@ int model_inliers(matrix H, match *m, int n, float thresh)
 // int n: number of elements in matches.
 void randomize_matches(match *m, int n)
 {
-    // TODO: implement Fisher-Yates to shuffle the array.
+    int i, j;
+    match temp;
+    // implement Fisher-Yates to shuffle the array.
+    for ( i = n - 1; i > 0; i-- ) {
+        j = rand() % (i+1);
+        temp = m[i];
+        m[i] = m[j];
+        m[j] = temp;
+    }
 }
 
 // Computes homography between two images given matching pixels.
@@ -247,8 +270,19 @@ matrix compute_homography(match *matches, int n)
         double xp = matches[i].q.x;
         double y  = matches[i].p.y;
         double yp = matches[i].q.y;
-        // TODO: fill in the matrices M and b.
-
+        // fill in the matrices M and b.
+        M.data[i*2][0] = x;
+        M.data[i*2][1] = y;
+        M.data[i*2][2] = 1;
+        M.data[i*2][6] = -xp * x;
+        M.data[i*2][7] = -yp * y;
+        M.data[i*2 + 1][3] = x;
+        M.data[i*2 + 1][4] = y;
+        M.data[i*2 + 1][5] = 1;
+        M.data[i*2 + 1][6] = -xp * x;
+        M.data[i*2 + 1][7] = -yp * y;
+        b.data[i*2][0] = xp;
+        b.data[i*2 + 1][0] = yp;
     }
     matrix a = solve_system(M, b);
     free_matrix(M); free_matrix(b); 
@@ -258,9 +292,16 @@ matrix compute_homography(match *matches, int n)
     if(!a.data) return none;
 
     matrix H = make_matrix(3, 3);
-    // TODO: fill in the homography H based on the result in a.
-
-
+    // fill in the homography H based on the result in a.
+    H.data[0][0] = a.data[0][0];
+    H.data[0][1] = a.data[1][0];
+    H.data[0][2] = a.data[2][0];
+    H.data[1][0] = a.data[3][0];
+    H.data[1][1] = a.data[4][0];
+    H.data[1][2] = a.data[5][0];
+    H.data[2][0] = a.data[6][0];
+    H.data[2][1] = a.data[7][0];
+    H.data[2][2] = 1.0;
     free_matrix(a);
     return H;
 }
