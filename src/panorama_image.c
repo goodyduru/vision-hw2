@@ -209,7 +209,6 @@ point project_point(matrix H, point p)
 // returns: L2 distance between them.
 float point_distance(point p, point q)
 {
-    float dist;
     return sqrt(pow((q.y - p.y), 2) + pow((q.x - p.x), 2));
 }
 
@@ -316,9 +315,11 @@ matrix compute_homography(match *matches, int n)
 matrix RANSAC(match *m, int n, float thresh, int k, int cutoff)
 {
     int e;
-    int best = 0;
+    int best = 4;
+    int num_inliers;
     matrix Hb = make_translation_homography(256, 0);
-    // TODO: fill in RANSAC algorithm.
+    matrix H;
+    // fill in RANSAC algorithm.
     // for k iterations:
     //     shuffle the matches
     //     compute a homography with a few matches (how many??)
@@ -328,6 +329,19 @@ matrix RANSAC(match *m, int n, float thresh, int k, int cutoff)
     //         if it's better than the cutoff:
     //             return it immediately
     // if we get to the end return the best homography
+    for ( e = 0; e < k; e++ ) {
+        randomize_matches(m, n);
+        H = compute_homography(m, 4);
+        num_inliers = model_inliers(H, m, n, thresh);
+        if ( num_inliers > best ) {
+            best = num_inliers;
+            Hb = compute_homography(m, num_inliers);
+            num_inliers = model_inliers(Hb, m, n, thresh);
+            if ( num_inliers > cutoff ) {
+                return Hb;
+            }
+        }
+    }
     return Hb;
 }
 
@@ -372,17 +386,31 @@ image combine_images(image a, image b, matrix H)
     for(k = 0; k < a.c; ++k){
         for(j = 0; j < a.h; ++j){
             for(i = 0; i < a.w; ++i){
-                // TODO: fill in.
+                set_pixel(c, i - dx, j-dy, k, get_pixel(a, i, j, k));
             }
         }
     }
 
-    // TODO: Paste in image b as well.
+    // Paste in image b as well.
     // You should loop over some points in the new image (which? all?)
     // and see if their projection from a coordinates to b coordinates falls
     // inside of the bounds of image b. If so, use bilinear interpolation to
     // estimate the value of b at that projection, then fill in image c.
-
+    float bx = (float)b.w / w;
+    float cx = -0.5 + 0.5 * bx;
+    float by = (float)b.h / h;
+    float cy = -0.5 + 0.5 * by;
+    for(k = 0; k < c.c; ++k){
+        for(j = 0; j < c.h; ++j){
+            for(i = 0; i < c.w; ++i){
+                point cp = project_point(H, make_point(i, j));
+                if ( cp.x >= 0 && cp.x < b.w && cp.y >= 0 && cp.y < b.h ) {
+                    float pixel = bilinear_interpolate(b, bx * i + cx, by * j + cy, k);
+                    set_pixel(c, i, j, k, pixel);
+                }
+            }
+        }
+    }
     return c;
 }
 
